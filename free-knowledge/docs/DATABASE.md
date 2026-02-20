@@ -112,7 +112,7 @@ If you don't want to install PostgreSQL locally, sign up for Neon (free):
 
 **PostgreSQL-backed caching**: In addition to the in-memory LRU cache, profiles and zip lookups are cached in PostgreSQL. This survives server restarts and serverless cold starts (important on Vercel/Neon where functions spin down).
 
-**Full-text search**: The Prisma schema enables PostgreSQL's built-in full-text search for official name lookups. No external search service needed.
+**Name search**: Official name lookups currently use Prisma `contains` queries. Full-text search via PostgreSQL `tsvector` can be added if search performance becomes a bottleneck at scale.
 
 **Anonymous analytics**: UsageMetric stores aggregated counts by feature/tier/day. No PII is stored — it answers questions like "how many free users viewed the finance tab this week" without tracking individuals.
 

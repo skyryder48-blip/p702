@@ -7,6 +7,7 @@ import {
   FinanceSummary,
   ContributorRecord,
 } from './index';
+import { FECCandidateSearchSchema, FECTotalsSchema, safeParseWith } from '../schemas';
 
 export class CampaignFinanceAdapter extends BaseAdapter {
   constructor(config: AdapterConfig) {
@@ -39,7 +40,8 @@ export class CampaignFinanceAdapter extends BaseAdapter {
     };
     if (state) params.state = state;
 
-    const data = await this.fetchJSON<any>(this.url('/candidates/search', params));
+    const raw = await this.fetchJSON<any>(this.url('/candidates/search', params));
+    const data = safeParseWith(FECCandidateSearchSchema, raw, 'fec.candidateSearch');
     const candidates = data.results ?? [];
 
     if (candidates.length === 0) return null;
@@ -69,7 +71,8 @@ export class CampaignFinanceAdapter extends BaseAdapter {
     };
     if (cycle) params.cycle = cycle.toString();
 
-    const data = await this.fetchJSON<any>(this.url(`/candidate/${candidateId}/totals`, params));
+    const raw = await this.fetchJSON<any>(this.url(`/candidate/${candidateId}/totals`, params));
+    const data = safeParseWith(FECTotalsSchema, raw, 'fec.totals');
     const totals = data.results?.[0];
 
     if (!totals) return null;

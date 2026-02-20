@@ -1,12 +1,12 @@
 # free-civics — Development Guide
 
-## Project State as of Phase 1
+## Project State as of Phase 1.5
 
 ### What Exists
 
-The project has 46 source files across three layers: a backend data layer (adapters, engines, types), an authentication and gating system, and a Phase 1 frontend vertical slice.
+The project has 46+ source files across three layers: a backend data layer (adapters, engines, types), an authentication and gating system, and a Phase 1 frontend vertical slice. Phase 1.5 hardening has been completed, adding validation, resilience, caching, error boundaries, and accessibility improvements.
 
-#### Data Layer (built, not yet tested against live APIs)
+#### Data Layer (built, hardened in Phase 1.5)
 
 ```
 src/core/adapters/government/
@@ -84,6 +84,28 @@ src/app/api/civics/
   member/[id]/finance/route.ts  FEC → fundraising totals + top contributors
 ```
 
+#### Phase 1.5 Hardening (complete)
+
+```
+src/lib/orchestrator.ts         Shared orchestrator factory (replaces per-route singletons)
+src/core/adapters/schemas.ts    Zod schemas for Congress.gov, FEC, Google Civic API responses
+src/core/auth/rate-limit.ts     Sliding window rate limiter (per-minute + per-day)
+src/app/error.tsx               Global error boundary with retry
+src/app/not-found.tsx           Styled 404 page
+src/app/loading.tsx             Global skeleton loading state
+src/app/official/[id]/layout.tsx  Server component with generateMetadata() for SEO
+```
+
+**Hardening applied to existing files:**
+- `BaseAdapter` now has retry logic (3 attempts, exponential backoff) and circuit breakers (3 failures → open 60s)
+- All adapters validate responses with Zod schemas (log warnings, return partial data on mismatch)
+- Vote fetching parallelized in batches of 5 via `Promise.allSettled()`
+- 251-call committee fallback removed
+- All API routes enforce rate limits (429 with Retry-After header)
+- Registration hardened: IP rate limit (5/hr), 12+ char password, stricter email validation
+- Profile tabs have ARIA attributes, keyboard navigation (ArrowLeft/ArrowRight)
+- PostgreSQL cache wired into API routes as primary cache layer
+
 ### What Does NOT Exist Yet
 
 - No voting record display (Congress.gov vote endpoints need integration)
@@ -94,8 +116,6 @@ src/app/api/civics/
 - FeatureGate not wired into any page
 - Compare view not built
 - Issue reports not built
-- PostgreSQL cache not wired to API routes (only in-memory LRU exists)
-- No error boundaries, no SEO metadata per page
 - No mobile navigation
 - No deployment configuration
 
@@ -329,58 +349,7 @@ This ensures premium data never reaches free-tier clients, even if someone bypas
 
 ## Phase 4 — Production Readiness
 
-### 4.1 PostgreSQL Cache Integration
-
-**Current state:** API routes fetch from government APIs on every request. The in-memory LRU cache in `src/core/cache/index.ts` helps during a single server session but is lost on restart.
-
-**Goal:** Wire the PostgreSQL-backed cache (`CachedProfile`, `CachedZipLookup` tables) into the API routes.
-
-**Implementation:**
-```
-src/app/api/civics/member/[id]/route.ts
-```
-Before calling Congress.gov:
-1. Check `getCachedProfile(bioguideId)` from `src/lib/db.ts`
-2. If cache hit and not expired, return cached data
-3. If cache miss, fetch from API, then call `setCachedProfile()` to store
-4. Same pattern for zip lookups using `getCachedZipLookup()` / `setCachedZipLookup()`
-
-**TTLs:**
-- Member profiles: 30 minutes (data updates daily)
-- Zip lookups: 24 hours (district boundaries rarely change)
-- Finance data: 6 hours (FEC updates nightly)
-
-**Cache purge:** Add a cron job or API endpoint that calls `purgeExpiredCache()` from `src/lib/db.ts` daily.
-
-### 4.2 Error Boundaries
-
-**Create:** `src/app/error.tsx` (Next.js App Router error boundary)
-
-This catches unhandled errors in any page and shows a styled error screen instead of a white page. Also create `src/app/not-found.tsx` for 404s.
-
-### 4.3 Loading States
-
-**Create:** `src/app/loading.tsx` (global loading state)
-
-Also ensure each page has its own `<Suspense>` fallback with skeleton UI. The Phase 1 pages already have skeletons — extend this pattern to all new pages.
-
-### 4.4 SEO & Metadata
-
-**Per-page metadata using Next.js `generateMetadata()`:**
-
-```typescript
-// src/app/official/[id]/page.tsx
-export async function generateMetadata({ params }) {
-  // Fetch member name for the title
-  return {
-    title: `${memberName} — free-civics`,
-    description: `Voting record, campaign finance, and legislative history for ${memberName}`,
-    openGraph: { ... },
-  };
-}
-```
-
-Add this to the official profile page, reps page, compare page, and issues page.
+> **Note:** PostgreSQL caching (4.1), error boundaries (4.2), loading states (4.3), SEO metadata (4.4), and rate limiting (4.6) were moved to Phase 1.5 and are now complete.
 
 ### 4.5 Mobile Navigation
 
@@ -388,16 +357,7 @@ Add this to the official profile page, reps page, compare page, and issues page.
 
 **Create:** A hamburger menu component that slides in from the right. Include: Search, About, Login/Dashboard, and (if logged in) Saved Officials.
 
-### 4.6 Rate Limiting
-
-**The tier system already defines rate limits in `tiers.ts`.** Implement them:
-- Free: 20 requests/minute, 500/day
-- Premium: 60 requests/minute, 5000/day
-- Institutional: 200 requests/minute, unlimited
-
-**Implementation:** Use the `getRateLimit()` function from `src/core/auth/middleware.ts`. Track request counts in the `UsageMetric` table or use a lightweight in-memory counter (Redis if available, otherwise Map with TTL).
-
-### 4.7 Analytics Wiring
+### 4.6 Analytics Wiring
 
 **The `trackUsage()` function in `src/lib/db.ts` exists.** Add it to key API routes:
 
@@ -532,19 +492,13 @@ A concrete list of every file that needs to be created or modified in each phase
 
 ### Phase 4 — Production Readiness
 
+> Note: Error boundaries, loading states, SEO metadata, PostgreSQL caching, and rate limiting were completed in Phase 1.5.
+
 | Action | File | Purpose |
 |--------|------|---------|
-| Create | `src/app/error.tsx` | Error boundary |
-| Create | `src/app/not-found.tsx` | 404 page |
-| Create | `src/app/loading.tsx` | Global loading state |
 | Create | `src/components/MobileNav.tsx` | Hamburger menu |
 | Create | `vercel.json` | Deployment configuration |
 | Create | `.github/workflows/deploy.yml` | CI/CD (optional) |
-| Modify | `src/app/api/civics/member/[id]/route.ts` | Add PostgreSQL caching |
-| Modify | `src/app/api/civics/zip/route.ts` | Add PostgreSQL caching |
-| Modify | `src/app/api/civics/member/[id]/finance/route.ts` | Add PostgreSQL caching |
-| Modify | `src/app/official/[id]/page.tsx` | Add generateMetadata() |
-| Modify | `src/app/reps/page.tsx` | Add generateMetadata() |
 | Modify | `src/app/layout.tsx` | Add mobile nav component |
 
 ---

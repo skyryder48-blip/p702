@@ -2,6 +2,7 @@
 // Docs: https://developers.google.com/civic-information
 
 import { BaseAdapter, AdapterConfig, RepresentativeInfo, ZipLookupResult } from './index';
+import { CivicInfoResponseSchema, safeParseWith } from '../schemas';
 
 export class CivicInfoAdapter extends BaseAdapter {
   constructor(config: AdapterConfig) {
@@ -11,7 +12,8 @@ export class CivicInfoAdapter extends BaseAdapter {
   async lookupByZip(zipCode: string): Promise<ZipLookupResult> {
     const url = `${this.baseUrl}/representatives?key=${this.apiKey}&address=${zipCode}&levels=country&roles=legislatorUpperBody&roles=legislatorLowerBody`;
 
-    const data = await this.fetchJSON<any>(url);
+    const raw = await this.fetchJSON<any>(url);
+    const data = safeParseWith(CivicInfoResponseSchema, raw, 'civicInfo.representatives');
 
     const officials: RepresentativeInfo[] = [];
     const offices = data.offices ?? [];

@@ -4,42 +4,121 @@ export interface AdapterConfig {
   apiKey?: string;
   baseUrl?: string;
   timeout?: number;
+  maxRetries?: number;
+}
+
+// Simple circuit breaker — stops calling an API after consecutive failures
+const circuitBreakers = new Map<string, { failures: number; openUntil: number }>();
+
+function getCircuitState(key: string): 'closed' | 'open' {
+  const state = circuitBreakers.get(key);
+  if (!state) return 'closed';
+  if (Date.now() > state.openUntil) {
+    circuitBreakers.delete(key);
+    return 'closed';
+  }
+  return state.failures >= 3 ? 'open' : 'closed';
+}
+
+function recordFailure(key: string) {
+  const state = circuitBreakers.get(key) ?? { failures: 0, openUntil: 0 };
+  state.failures++;
+  if (state.failures >= 3) {
+    state.openUntil = Date.now() + 60_000; // Open for 60 seconds
+  }
+  circuitBreakers.set(key, state);
+}
+
+function recordSuccess(key: string) {
+  circuitBreakers.delete(key);
 }
 
 export abstract class BaseAdapter {
   protected apiKey: string;
   protected baseUrl: string;
   protected timeout: number;
+  protected maxRetries: number;
 
   constructor(config: AdapterConfig) {
     this.apiKey = config.apiKey ?? '';
     this.baseUrl = config.baseUrl ?? '';
     this.timeout = config.timeout ?? 10000;
+    this.maxRetries = config.maxRetries ?? 3;
   }
 
   protected async fetchJSON<T>(url: string, init?: RequestInit): Promise<T> {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.timeout);
+    const circuitKey = new URL(url).hostname;
 
-    try {
-      const res = await fetch(url, {
-        ...init,
-        signal: controller.signal,
-        headers: {
-          'Accept': 'application/json',
-          ...init?.headers,
-        },
-      });
-
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}: ${res.statusText} — ${url}`);
-      }
-
-      return (await res.json()) as T;
-    } finally {
-      clearTimeout(timer);
+    if (getCircuitState(circuitKey) === 'open') {
+      throw new Error(`Circuit breaker open for ${circuitKey} — too many recent failures`);
     }
+
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt < this.maxRetries; attempt++) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.timeout);
+
+      try {
+        const res = await fetch(url, {
+          ...init,
+          signal: controller.signal,
+          headers: {
+            'Accept': 'application/json',
+            ...init?.headers,
+          },
+        });
+
+        clearTimeout(timer);
+
+        if (res.status === 429) {
+          // Rate limited — back off and retry
+          const retryAfter = parseInt(res.headers.get('Retry-After') ?? '2', 10);
+          await sleep(retryAfter * 1000);
+          continue;
+        }
+
+        if (res.status >= 500 && attempt < this.maxRetries - 1) {
+          // Server error — exponential backoff
+          await sleep(Math.pow(2, attempt) * 1000);
+          continue;
+        }
+
+        if (!res.ok) {
+          recordFailure(circuitKey);
+          throw new Error(`HTTP ${res.status}: ${res.statusText} — ${url}`);
+        }
+
+        recordSuccess(circuitKey);
+        return (await res.json()) as T;
+      } catch (error: any) {
+        clearTimeout(timer);
+        lastError = error;
+
+        if (error.name === 'AbortError') {
+          // Timeout — retry with backoff
+          if (attempt < this.maxRetries - 1) {
+            await sleep(Math.pow(2, attempt) * 1000);
+            continue;
+          }
+        }
+
+        if (attempt >= this.maxRetries - 1) {
+          recordFailure(circuitKey);
+          throw lastError;
+        }
+
+        await sleep(Math.pow(2, attempt) * 1000);
+      }
+    }
+
+    recordFailure(circuitKey);
+    throw lastError ?? new Error(`Failed after ${this.maxRetries} attempts`);
   }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 // Shared types across adapters

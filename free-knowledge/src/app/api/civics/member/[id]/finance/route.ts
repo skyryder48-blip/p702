@@ -2,22 +2,8 @@
 // Returns FEC campaign finance data
 
 import { NextRequest, NextResponse } from 'next/server';
-import { Orchestrator } from '@/core/orchestrator';
-
-let orchestrator: Orchestrator | null = null;
-
-function getOrchestrator(): Orchestrator {
-  if (!orchestrator) {
-    orchestrator = new Orchestrator({
-      congressApiKey: process.env.CONGRESS_API_KEY,
-      fecApiKey: process.env.FEC_API_KEY,
-      googleCivicApiKey: process.env.GOOGLE_CIVIC_API_KEY,
-      anthropicApiKey: process.env.ANTHROPIC_API_KEY,
-      newsApiKey: process.env.NEWS_API_KEY,
-    });
-  }
-  return orchestrator;
-}
+import { getOrchestrator } from '@/lib/orchestrator';
+import { checkRateLimit, getRateLimitKey } from '@/core/auth/rate-limit';
 
 export async function GET(
   request: NextRequest,
@@ -30,6 +16,16 @@ export async function GET(
     return NextResponse.json(
       { error: 'Both bioguide ID and name are required' },
       { status: 400 }
+    );
+  }
+
+  // Rate limit check
+  const rateKey = getRateLimitKey(request);
+  const rateResult = checkRateLimit(rateKey, 'free');
+  if (!rateResult.allowed) {
+    return NextResponse.json(
+      { error: 'Rate limit exceeded. Please try again later.' },
+      { status: 429, headers: { 'Retry-After': String(Math.ceil((rateResult.retryAfterMs ?? 60000) / 1000)) } }
     );
   }
 

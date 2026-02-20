@@ -66,12 +66,29 @@ interface FinanceData {
 }
 
 type Tab = 'overview' | 'legislation' | 'finance';
+const TABS: Tab[] = ['overview', 'legislation', 'finance'];
 
 export default function OfficialPage() {
   const { id } = useParams<{ id: string }>();
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [finance, setFinance] = useState<FinanceData | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('overview');
+
+  // Keyboard navigation for tabs (arrow keys)
+  function handleTabKeyDown(e: React.KeyboardEvent) {
+    const idx = TABS.indexOf(activeTab);
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      const next = TABS[(idx + 1) % TABS.length];
+      setActiveTab(next);
+      document.getElementById(`tab-${next}`)?.focus();
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const prev = TABS[(idx - 1 + TABS.length) % TABS.length];
+      setActiveTab(prev);
+      document.getElementById(`tab-${prev}`)?.focus();
+    }
+  }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -179,38 +196,36 @@ export default function OfficialPage() {
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="tabs">
-          <button
-            className={`tab ${activeTab === 'overview' ? 'active' : ''}`}
-            onClick={() => setActiveTab('overview')}
-          >
-            Overview
-          </button>
-          <button
-            className={`tab ${activeTab === 'legislation' ? 'active' : ''}`}
-            onClick={() => setActiveTab('legislation')}
-          >
-            Legislation
-          </button>
-          <button
-            className={`tab ${activeTab === 'finance' ? 'active' : ''}`}
-            onClick={() => setActiveTab('finance')}
-          >
-            Campaign Finance
-          </button>
+        {/* Tabs — accessible with ARIA and keyboard navigation */}
+        <div className="tabs" role="tablist" aria-label="Profile sections" onKeyDown={handleTabKeyDown}>
+          {(['overview', 'legislation', 'finance'] as Tab[]).map(tab => (
+            <button
+              key={tab}
+              className={`tab ${activeTab === tab ? 'active' : ''}`}
+              role="tab"
+              aria-selected={activeTab === tab}
+              aria-controls={`tabpanel-${tab}`}
+              id={`tab-${tab}`}
+              tabIndex={activeTab === tab ? 0 : -1}
+              onClick={() => setActiveTab(tab)}
+            >
+              {tab === 'overview' ? 'Overview' : tab === 'legislation' ? 'Legislation' : 'Campaign Finance'}
+            </button>
+          ))}
         </div>
 
         {/* Tab Content */}
-        {activeTab === 'overview' && (
-          <OverviewTab member={member} biography={biography} />
-        )}
-        {activeTab === 'legislation' && (
-          <LegislationTab bills={bills} />
-        )}
-        {activeTab === 'finance' && (
-          <FinanceTab finance={finance} memberName={member.name} />
-        )}
+        <div role="tabpanel" id={`tabpanel-${activeTab}`} aria-labelledby={`tab-${activeTab}`}>
+          {activeTab === 'overview' && (
+            <OverviewTab member={member} biography={biography} />
+          )}
+          {activeTab === 'legislation' && (
+            <LegislationTab bills={bills} />
+          )}
+          {activeTab === 'finance' && (
+            <FinanceTab finance={finance} memberName={member.name} />
+          )}
+        </div>
       </div>
     </div>
   );

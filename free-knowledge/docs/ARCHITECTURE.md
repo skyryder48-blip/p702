@@ -1,74 +1,70 @@
-# free-knowledge — Architecture
+# free-civics — Architecture
 
 ## Overview
 
-free-knowledge is a modular research/dossier engine that aggregates, synthesizes, and presents biographical and contextual information about any subject (person, company, organization, topic).
+free-civics is a civic transparency platform built on the free-knowledge engine pattern. It aggregates data from government APIs (Congress.gov, FEC, Google Civic Info), biographical sources (Wikipedia, Wikidata), and news feeds to present comprehensive profiles of U.S. government officials.
 
 ## Core Design Principles
 
-1. **Adapter Pattern** — Each data source is an isolated adapter implementing a common interface. Adding a new source means adding one file.
-2. **Pipeline Architecture** — Raw data flows through: Collection → Normalization → Synthesis → Presentation
-3. **Configuration-Driven Verticals** — Niche versions are configuration profiles, not separate codebases. A profile defines which adapters to use, how to weight data, what prompts to use for synthesis, and which UI template to render.
-4. **Caching Layer** — Aggressive caching to minimize API costs and improve response times.
+1. **Adapter Pattern** — Each data source is an isolated adapter implementing a common interface (`BaseAdapter`). Adding a new source means adding one file under `src/core/adapters/`.
+2. **Pipeline Architecture** — Raw data flows through: Collection → Validation (Zod) → Synthesis (Claude AI) → Presentation
+3. **Configuration-Driven Verticals** — The free-knowledge engine supports multiple verticals via configuration profiles. free-civics is the first vertical, defining which adapters to use, how to weight data, what prompts to use for synthesis, and which UI template to render.
+4. **Caching Layer** — Two-tier caching: in-memory LRU for hot-path speed, PostgreSQL-backed cache for persistence across serverless cold starts.
+5. **Resilience** — Retry with exponential backoff, circuit breakers on external APIs, Zod validation on all API responses, graceful degradation when adapters fail.
 
 ## Data Pipeline
 
 ```
-[User Query]
+[User Query: "Nancy Pelosi" or "60188"]
      │
      ▼
-[Orchestrator] ── decides which adapters to invoke based on subject type + config profile
+[Orchestrator] ── coordinates adapters based on query type
      │
-     ├── [Wikipedia Adapter]     → biographical data, summary, infobox
-     ├── [Wikidata Adapter]      → structured facts, relationships, identifiers
-     ├── [News Adapter]          → recent articles, headlines, sentiment
-     ├── [Web Search Adapter]    → supplementary context, fills gaps
-     └── [Custom Adapters...]    → extensible per vertical
-     │
-     ▼
-[Normalizer] ── transforms all adapter outputs into a unified SubjectProfile schema
+     ├── [CongressAdapter]        → member data, bills, votes, committees
+     ├── [CampaignFinanceAdapter] → donors, industries, FEC data
+     ├── [CivicInfoAdapter]       → zip → representatives, contact info
+     ├── [WikipediaAdapter]       → biographical background
+     ├── [WikidataAdapter]        → structured facts (birth, education, etc.)
+     └── [NewsAdapter]            → recent coverage
      │
      ▼
-[Synthesis Engine] ── AI-powered layer that:
-     │   - Generates readable biographical summary
-     │   - Identifies key themes and career milestones
-     │   - Flags notable controversies or achievements
-     │   - Produces domain-specific analysis (per config)
+[Specialized Engines]
+     ├── [ScorecardEngine]    → raw metrics with chamber benchmarks (no grades)
+     ├── [LegislationEngine]  → AI bill summaries, vote categorization
+     ├── [CompareEngine]      → side-by-side analysis
+     └── [IssuesEngine]       → "What Affects Me" filtering
      │
      ▼
-[SubjectProfile] ── final structured output ready for presentation
+[OfficialProfile] → Complete civic dossier
 ```
 
-## Subject Profile Schema
+## Key Types
 
 ```typescript
-interface SubjectProfile {
-  id: string;
+// From src/core/adapters/government/index.ts
+interface MemberSummary {
+  bioguideId: string;
   name: string;
-  type: 'person' | 'organization' | 'topic' | 'event';
-  summary: string;                    // AI-synthesized overview
-  biography: BiographySection[];      // chronological life/history
-  keyFacts: KeyFact[];                // structured quick-reference data
-  news: NewsArticle[];                // recent coverage
-  timeline: TimelineEvent[];          // major events/milestones
-  associations: Association[];        // related people/orgs
-  sources: Source[];                  // attribution for all data
-  metadata: ProfileMetadata;          // generated timestamp, confidence, etc.
-  deepDive?: DeepDiveSection[];       // premium: in-depth analysis areas
+  party: string;
+  state: string;
+  chamber: 'senate' | 'house';
+  // ... plus district, terms, depiction, etc.
 }
-```
 
-## Configuration Profiles
+interface BillSummary {
+  congress: number;
+  type: string;
+  number: number;
+  title: string;
+  policyArea?: string;
+  latestAction?: string;
+}
 
-```typescript
-interface VerticalConfig {
-  id: string;
-  name: string;                       // e.g., "Investor Research"
-  adapters: AdapterConfig[];          // which sources + priority
-  synthesisPrompt: string;            // domain-specific AI instructions
-  uiTemplate: string;                 // presentation template ID
-  features: FeatureFlags;             // what's enabled (deepDive, alerts, export)
-  rateLimits: RateLimitConfig;        // per-tier usage limits
+interface ZipLookupResult {
+  zipCode: string;
+  state: string;
+  city: string;
+  officials: RepresentativeInfo[];
 }
 ```
 
@@ -76,16 +72,20 @@ interface VerticalConfig {
 
 | Tier | Description | Revenue Model |
 |------|-------------|---------------|
-| Free Public | General biographical lookup, rate-limited | Donations, sponsorships, funnel |
-| Niche Paid | Vertical-specific (investors, journalists, HR) | Monthly subscription |
-| Institutional | Self-hosted or dedicated, branded, full API | Per-seat licensing |
+| Free | Official profiles, zip lookup, basic scorecard, recent votes | $0 |
+| Premium | Full scorecard, issue reports, comparisons, PDF export, alerts | $9.99/mo |
+| Institutional | API access, bulk data, custom branding, self-hosted option | Custom |
+
+Feature gating is defined in `src/core/auth/tiers.ts` (35+ features) and enforced both client-side (`<FeatureGate>`) and server-side (`gateProfileResponse()`).
 
 ## Tech Stack
 
-- **Framework**: Next.js 14+ (App Router)
+- **Framework**: Next.js 14 (App Router, Server Components)
 - **Language**: TypeScript
-- **Data Sources**: Wikipedia API, Wikidata API, NewsAPI/GNews, Web Search
+- **Auth**: NextAuth.js v4 (JWT strategy, Google + GitHub + Credentials)
+- **Data Sources**: Congress.gov API, FEC API, Google Civic Info API, Wikipedia API, Wikidata API, GNews API
 - **AI Synthesis**: Anthropic Claude API
-- **Caching**: Redis (production) / In-memory LRU (development)
-- **Database**: PostgreSQL (user accounts, saved profiles, analytics)
+- **Validation**: Zod (all external API responses)
+- **Caching**: In-memory LRU + PostgreSQL (two-tier)
+- **Database**: PostgreSQL via Prisma ORM (Neon for production)
 - **Hosting**: Vercel (free tier to start)
