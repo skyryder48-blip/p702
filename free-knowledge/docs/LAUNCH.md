@@ -134,6 +134,38 @@ npm install
 - There may be `npm warn` lines — these are normal and can be ignored
 - If you see `npm ERR!` lines, something went wrong (see below)
 
+**About vulnerability warnings:**
+
+After installation, npm may print something like:
+
+```
+4 vulnerabilities (3 low, 1 high)
+```
+
+This is npm's built-in security audit. Here's what to do:
+
+1. **Run `npm audit fix`** (no `--force`) — this fixes the 3 low-severity issues (a `cookie` parsing bug in the `next-auth` dependency chain) without breaking anything:
+
+   ```bash
+   npm audit fix
+   ```
+
+2. **Do NOT run `npm audit fix --force`** — the 1 high-severity issue is in Next.js itself (an Image Optimizer DoS vulnerability affecting self-hosted production deployments). The "fix" would upgrade Next.js from v14 to v16, which is a **major version jump that will break the app**. This vulnerability:
+   - Does **not** affect local development
+   - Does **not** affect Vercel-hosted deployments (Vercel patches this on their platform)
+   - Only affects self-hosted production servers exposed to the internet
+   - Will be addressed when the project upgrades to Next.js 15+ (a planned future task)
+
+3. **To confirm the remaining issue**, run:
+
+   ```bash
+   npm audit
+   ```
+
+   You should see the `next` entry remaining. This is expected and safe to proceed with.
+
+> **Bottom line:** Run `npm audit fix`, ignore the remaining Next.js advisory, and continue to Step 4. The app is safe to run locally.
+
 **How to verify it worked:**
 
 ```bash
