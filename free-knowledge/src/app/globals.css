@@ -504,3 +504,24 @@ a:hover {
   .header-nav { display: none; }
   h1 { font-size: 1.5rem; }
 }
+
+/* ===========================
+   Auth & Dashboard
+   =========================== */
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.tier-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.tier-badge.free { background: var(--color-parchment-dark); color: var(--color-ink); }
+.tier-badge.premium { background: var(--color-gold); color: white; }
+.tier-badge.institutional { background: var(--color-mahogany); color: white; }

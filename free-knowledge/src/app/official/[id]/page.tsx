@@ -3,6 +3,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { SaveOfficialButton } from '@/components/SaveOfficialButton';
+import { useCivicsAuth } from '@/core/auth/use-civics-auth';
+import { FeatureGate, UpgradePrompt } from '@/core/auth/components';
 
 // Types
 interface Member {
@@ -251,6 +254,16 @@ export default function OfficialPage() {
               <span className={`party-badge ${partyClass}`}>{member.party}</span>
             </div>
             <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
+              <div style={{ marginBottom: 'var(--space-md)', display: 'flex', justifyContent: 'flex-end' }}>
+                <SaveOfficialButton
+                  bioguideId={member.bioguideId}
+                  name={member.name}
+                  title={member.chamber === 'senate' ? 'Senator' : 'Representative'}
+                  party={member.party}
+                  state={member.state}
+                  chamber={member.chamber}
+                />
+              </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-md)', textAlign: 'center' }}>
                 <div>
                   <p style={{ fontSize: '1.8rem', fontFamily: 'var(--font-heading)', fontWeight: 700, color: 'var(--color-mahogany)' }}>
@@ -305,10 +318,14 @@ export default function OfficialPage() {
             <VotesTab votes={votes} />
           )}
           {activeTab === 'finance' && (
-            <FinanceTab finance={finance} memberName={member.name} />
+            <FeatureGate feature="finance.summary" fallback={<UpgradePrompt feature="finance.summary" />}>
+              <FinanceTab finance={finance} memberName={member.name} />
+            </FeatureGate>
           )}
           {activeTab === 'metrics' && (
-            <MetricsTab scorecard={scorecard} />
+            <FeatureGate feature="metrics.scorecard" fallback={<UpgradePrompt feature="metrics.scorecard" />}>
+              <MetricsTab scorecard={scorecard} />
+            </FeatureGate>
           )}
         </div>
       </div>
@@ -331,6 +348,9 @@ function OverviewTab({
   committees: CommitteeAssignment[] | null;
   news: NewsArticle[] | null;
 }) {
+  const { applyLimit } = useCivicsAuth();
+  const newsResult = news ? applyLimit('news.recent', news) : null;
+
   return (
     <div>
       {/* Biography */}
@@ -424,14 +444,14 @@ function OverviewTab({
       )}
 
       {/* Recent News */}
-      {news && news.length > 0 && (
+      {newsResult && newsResult.items.length > 0 && (
         <div className="card" style={{ marginBottom: 'var(--space-lg)' }}>
           <h3 style={{ marginBottom: 'var(--space-md)' }}>Recent News</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
-            {news.slice(0, 5).map((article, i) => (
+            {newsResult.items.map((article, i) => (
               <div key={i} style={{
-                paddingBottom: i < Math.min(news.length, 5) - 1 ? 'var(--space-md)' : 0,
-                borderBottom: i < Math.min(news.length, 5) - 1 ? '1px solid var(--border-color)' : 'none',
+                paddingBottom: i < newsResult.items.length - 1 ? 'var(--space-md)' : 0,
+                borderBottom: i < newsResult.items.length - 1 ? '1px solid var(--border-color)' : 'none',
               }}>
                 <a href={article.url} target="_blank" rel="noopener noreferrer" style={{ fontWeight: 600, lineHeight: 1.3 }}>
                   {article.title}
@@ -449,6 +469,12 @@ function OverviewTab({
               </div>
             ))}
           </div>
+          {newsResult.limited && (
+            <div className="teaser-overlay" style={{ marginTop: 'var(--space-md)' }}>
+              <p className="teaser-message">Showing {newsResult.items.length} of {newsResult.total} articles</p>
+              <UpgradePrompt feature="news.recent" compact />
+            </div>
+          )}
         </div>
       )}
 
@@ -490,6 +516,9 @@ function OverviewTab({
 // --- Legislation Tab ---
 
 function LegislationTab({ bills }: { bills: Bill[] }) {
+  const { applyLimit } = useCivicsAuth();
+  const { items: visibleBills, limited, total } = applyLimit('legislation.sponsored_bills', bills);
+
   if (bills.length === 0) {
     return (
       <div className="card">
@@ -512,7 +541,7 @@ function LegislationTab({ bills }: { bills: Bill[] }) {
           </tr>
         </thead>
         <tbody>
-          {bills.map((bill, i) => (
+          {visibleBills.map((bill, i) => (
             <tr key={i}>
               <td>
                 <a href={bill.url} target="_blank" rel="noopener noreferrer">
@@ -527,6 +556,12 @@ function LegislationTab({ bills }: { bills: Bill[] }) {
           ))}
         </tbody>
       </table>
+      {limited && (
+        <div className="teaser-overlay" style={{ marginTop: 'var(--space-lg)' }}>
+          <p className="teaser-message">Showing {visibleBills.length} of {total} bills</p>
+          <UpgradePrompt feature="legislation.sponsored_bills" compact />
+        </div>
+      )}
     </div>
   );
 }
@@ -534,6 +569,8 @@ function LegislationTab({ bills }: { bills: Bill[] }) {
 // --- Votes Tab ---
 
 function VotesTab({ votes }: { votes: VoteRecord[] | null }) {
+  const { applyLimit } = useCivicsAuth();
+
   if (votes === null) {
     return (
       <div className="card">
@@ -551,6 +588,8 @@ function VotesTab({ votes }: { votes: VoteRecord[] | null }) {
     );
   }
 
+  const { items: visibleVotes, limited, total } = applyLimit('votes.recent', votes);
+
   return (
     <div className="card">
       <h3 style={{ marginBottom: 'var(--space-lg)' }}>Recent Roll Call Votes</h3>
@@ -566,7 +605,7 @@ function VotesTab({ votes }: { votes: VoteRecord[] | null }) {
           </tr>
         </thead>
         <tbody>
-          {votes.map((vote, i) => {
+          {visibleVotes.map((vote, i) => {
             const posClass = vote.memberPosition === 'Yea' ? 'vote-yea'
               : vote.memberPosition === 'Nay' ? 'vote-nay'
               : 'vote-other';
@@ -591,6 +630,12 @@ function VotesTab({ votes }: { votes: VoteRecord[] | null }) {
           })}
         </tbody>
       </table>
+      {limited && (
+        <div className="teaser-overlay" style={{ marginTop: 'var(--space-lg)' }}>
+          <p className="teaser-message">Showing {visibleVotes.length} of {total} votes</p>
+          <UpgradePrompt feature="votes.recent" compact />
+        </div>
+      )}
     </div>
   );
 }

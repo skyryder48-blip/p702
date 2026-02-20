@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { FeatureGate, UpgradePrompt } from '@/core/auth/components';
 
 // Issue categories matching ISSUE_CATEGORIES from config/profiles.ts
 const ISSUE_CATEGORIES = [
@@ -147,23 +148,25 @@ export default function IssuesPage() {
           </div>
         )}
 
-        {/* Loading */}
-        {loading && (
-          <div>
-            <div className="skeleton skeleton-card" />
-            <div className="skeleton skeleton-card" />
-          </div>
-        )}
+        {/* Issue Report (premium gated) */}
+        {officialId && selectedIssue && (
+          <FeatureGate feature="issues.report" fallback={<UpgradePrompt feature="issues.report" />}>
+            {/* Loading */}
+            {loading && (
+              <div>
+                <div className="skeleton skeleton-card" />
+                <div className="skeleton skeleton-card" />
+              </div>
+            )}
 
-        {/* Error */}
-        {error && (
-          <div className="card">
-            <p style={{ color: 'var(--color-error, #c00)' }}>{error}</p>
-          </div>
-        )}
+            {/* Error */}
+            {error && (
+              <div className="card">
+                <p style={{ color: 'var(--color-error, #c00)' }}>{error}</p>
+              </div>
+            )}
 
-        {/* Issue Report */}
-        {report && (
+            {report && (
           <div>
             <div style={{ marginBottom: 'var(--space-lg)' }}>
               <Link href={`/issues?official=${officialId}`} className="text-sm">
@@ -274,6 +277,8 @@ export default function IssuesPage() {
               </div>
             )}
           </div>
+            )}
+          </FeatureGate>
         )}
       </div>
     </div>

@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getOrchestrator } from '@/lib/orchestrator';
 import { getCachedZipLookup, setCachedZipLookup } from '@/lib/db';
 import { checkRateLimit, getRateLimitKey } from '@/core/auth/rate-limit';
+import { getRequestTier } from '@/lib/api-auth';
 
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get('code');
@@ -16,9 +17,10 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Rate limit check
-  const rateKey = getRateLimitKey(request);
-  const rateResult = checkRateLimit(rateKey, 'free');
+  // Rate limit check (tier-aware)
+  const { tier, userId } = await getRequestTier(request);
+  const rateKey = userId ? `user:${userId}` : getRateLimitKey(request);
+  const rateResult = checkRateLimit(rateKey, tier);
   if (!rateResult.allowed) {
     return NextResponse.json(
       { error: 'Rate limit exceeded. Please try again later.' },

@@ -4,6 +4,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getOrchestrator } from '@/lib/orchestrator';
 import { checkRateLimit, getRateLimitKey } from '@/core/auth/rate-limit';
+import { getRequestTier } from '@/lib/api-auth';
+import { requireFeature } from '@/core/auth/middleware';
 
 export async function GET(
   request: NextRequest,
@@ -19,14 +21,21 @@ export async function GET(
     );
   }
 
-  // Rate limit check
-  const rateKey = getRateLimitKey(request);
-  const rateResult = checkRateLimit(rateKey, 'free');
+  // Rate limit check (tier-aware)
+  const { tier, userId } = await getRequestTier(request);
+  const rateKey = userId ? `user:${userId}` : getRateLimitKey(request);
+  const rateResult = checkRateLimit(rateKey, tier);
   if (!rateResult.allowed) {
     return NextResponse.json(
       { error: 'Rate limit exceeded. Please try again later.' },
       { status: 429, headers: { 'Retry-After': String(Math.ceil((rateResult.retryAfterMs ?? 60000) / 1000)) } }
     );
+  }
+
+  // Feature gate — finance is premium only
+  const denied = requireFeature('finance.summary', tier);
+  if (denied) {
+    return NextResponse.json({ error: denied.error }, { status: denied.status });
   }
 
   try {

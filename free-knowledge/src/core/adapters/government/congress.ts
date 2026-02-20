@@ -59,11 +59,11 @@ export class CongressAdapter extends BaseAdapter {
 
     return {
       bioguideId: m.bioguideId,
-      name: m.directOrderName ?? `${m.firstName} ${m.lastName}`,
-      firstName: m.firstName,
-      lastName: m.lastName,
+      name: m.directOrderName ?? `${m.firstName ?? ''} ${m.lastName ?? ''}`.trim(),
+      firstName: m.firstName ?? '',
+      lastName: m.lastName ?? '',
       party: m.partyName ?? m.party ?? '',
-      state: m.state,
+      state: m.state ?? '',
       district: m.district?.toString(),
       chamber: currentTerm?.chamber?.toLowerCase() === 'senate' ? 'senate' : 'house',
       depiction: m.depiction?.imageUrl,
