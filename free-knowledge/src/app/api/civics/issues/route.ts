@@ -7,6 +7,8 @@ import { checkRateLimit, getRateLimitKey } from '@/core/auth/rate-limit';
 import { IssuesEngine } from '@/engines/issues/index';
 import { getRequestTier } from '@/lib/api-auth';
 import { requireFeature } from '@/core/auth/middleware';
+import { getCached, setCache } from '@/lib/cache';
+import { trackUsage } from '@/lib/db';
 import type { IssueCategoryId } from '@/config/profiles';
 
 const VALID_ISSUES = [
@@ -56,6 +58,10 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const cacheKey = `issues:${officialId}:${issueId}`;
+    const cached = getCached<any>(cacheKey);
+    if (cached) return NextResponse.json(cached);
+
     const orchestrator = getOrchestrator();
 
     // Fetch member profile + votes in parallel
@@ -82,6 +88,9 @@ export async function GET(request: NextRequest) {
       bills,
       votes,
     );
+
+    setCache(cacheKey, report, 'issues');
+    trackUsage({ feature: 'issues.report', tier, action: 'view' }).catch(() => {});
 
     return NextResponse.json(report);
   } catch (error: any) {

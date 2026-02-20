@@ -7,6 +7,7 @@ import { getCachedProfile, setCachedProfile } from '@/lib/db';
 import { checkRateLimit, getRateLimitKey } from '@/core/auth/rate-limit';
 import { getRequestTier } from '@/lib/api-auth';
 import { gateProfileResponse } from '@/core/auth/middleware';
+import { trackUsage } from '@/lib/db';
 
 export async function GET(
   request: NextRequest,
@@ -70,6 +71,7 @@ export async function GET(
       // Cache write failure is non-fatal
     }
 
+    trackUsage({ feature: 'profile.view', tier, action: 'view' }).catch(() => {});
     return NextResponse.json(gateProfileResponse(result, tier));
   } catch (error: any) {
     console.error('[API:civics/member] Error:', error);

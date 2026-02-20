@@ -7,6 +7,8 @@ import { checkRateLimit, getRateLimitKey } from '@/core/auth/rate-limit';
 import { ScorecardEngine } from '@/engines/scorecard/index';
 import { getRequestTier } from '@/lib/api-auth';
 import { requireFeature } from '@/core/auth/middleware';
+import { getCached, setCache } from '@/lib/cache';
+import { trackUsage } from '@/lib/db';
 
 export async function GET(
   request: NextRequest,
@@ -44,16 +46,17 @@ export async function GET(
   }
 
   try {
+    const chamber = (request.nextUrl.searchParams.get('chamber') as 'house' | 'senate') ?? 'house';
+    const cacheKey = `metrics:${bioguideId}:${chamber}`;
+    const cached = getCached<any>(cacheKey);
+    if (cached) return NextResponse.json(cached);
+
     const orchestrator = getOrchestrator();
 
     // Fetch member + votes + committees in parallel
     const [profileResult, votesResult, committeesResult] = await Promise.allSettled([
       orchestrator.getMemberProfile(bioguideId),
-      orchestrator.getMemberVotes(
-        bioguideId,
-        (request.nextUrl.searchParams.get('chamber') as 'house' | 'senate') ?? 'house',
-        50
-      ),
+      orchestrator.getMemberVotes(bioguideId, chamber, 50),
       orchestrator.getMemberCommittees(bioguideId),
     ]);
 
@@ -103,6 +106,8 @@ export async function GET(
       committeeMemberships: committees.length + committees.reduce((sum, c) => sum + (c.subcommittees?.length ?? 0), 0),
     });
 
+    setCache(cacheKey, scorecard, 'metrics');
+    trackUsage({ feature: 'metrics.view', tier, action: 'view' }).catch(() => {});
     return NextResponse.json(scorecard);
   } catch (error: any) {
     console.error('[API:civics/member/metrics] Error:', error);

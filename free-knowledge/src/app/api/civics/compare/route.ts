@@ -7,6 +7,8 @@ import { checkRateLimit, getRateLimitKey } from '@/core/auth/rate-limit';
 import { CompareEngine } from '@/engines/compare/index';
 import { getRequestTier } from '@/lib/api-auth';
 import { requireFeature } from '@/core/auth/middleware';
+import { getCached, setCache } from '@/lib/cache';
+import { trackUsage } from '@/lib/db';
 
 export async function GET(request: NextRequest) {
   const a = request.nextUrl.searchParams.get('a');
@@ -49,6 +51,10 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const cacheKey = `compare:${[a, b].sort().join(':')}`;
+    const cached = getCached<any>(cacheKey);
+    if (cached) return NextResponse.json(cached);
+
     const orchestrator = getOrchestrator();
 
     // Fetch both full profiles in parallel
@@ -59,6 +65,8 @@ export async function GET(request: NextRequest) {
 
     const engine = new CompareEngine();
     const comparison = engine.compare(profile1, profile2);
+    setCache(cacheKey, comparison, 'compare');
+    trackUsage({ feature: 'compare.view', tier, action: 'view' }).catch(() => {});
 
     return NextResponse.json(comparison);
   } catch (error: any) {

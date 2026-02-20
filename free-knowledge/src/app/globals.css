@@ -502,7 +502,115 @@ a:hover {
 
 @media (max-width: 480px) {
   .header-nav { display: none; }
+  .auth-nav { display: none; }
   h1 { font-size: 1.5rem; }
+}
+
+/* ===========================
+   Mobile Navigation
+   =========================== */
+
+.mobile-nav-wrapper {
+  display: none;
+}
+
+@media (max-width: 480px) {
+  .mobile-nav-wrapper {
+    display: block;
+  }
+}
+
+.mobile-nav-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: var(--space-sm);
+  z-index: 200;
+  position: relative;
+}
+
+.hamburger {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 24px;
+}
+
+.hamburger span {
+  display: block;
+  height: 2px;
+  background: white;
+  border-radius: 2px;
+  transition: all 0.3s;
+}
+
+.hamburger.open span:nth-child(1) {
+  transform: rotate(45deg) translate(5px, 5px);
+}
+
+.hamburger.open span:nth-child(2) {
+  opacity: 0;
+}
+
+.hamburger.open span:nth-child(3) {
+  transform: rotate(-45deg) translate(5px, -5px);
+}
+
+.mobile-nav-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 150;
+}
+
+.mobile-nav-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 260px;
+  height: 100vh;
+  background: var(--color-mahogany-dark);
+  padding: calc(var(--header-height) + var(--space-lg)) var(--space-xl) var(--space-xl);
+  z-index: 160;
+  box-shadow: var(--shadow-lg);
+}
+
+.mobile-nav-panel ul {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.mobile-nav-panel a {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 1.1rem;
+  font-weight: 500;
+  display: block;
+  padding: var(--space-sm) 0;
+}
+
+.mobile-nav-panel a:hover {
+  color: var(--color-gold);
+}
+
+.mobile-nav-divider {
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  margin: var(--space-sm) 0;
+}
+
+.mobile-nav-signout {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 1rem;
+  font-family: var(--font-body);
+  cursor: pointer;
+  padding: var(--space-sm) 0;
+}
+
+.mobile-nav-signout:hover {
+  color: var(--color-gold);
 }
 
 /* ===========================

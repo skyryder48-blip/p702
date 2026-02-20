@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 
 interface Official {
   name: string;
@@ -122,12 +123,12 @@ function OfficialCard({ official }: { official: Official }) {
     <div className="card">
       <div style={{ display: 'flex', gap: 'var(--space-lg)', alignItems: 'center' }}>
         {official.photoUrl && (
-          <img
+          <Image
             src={official.photoUrl}
             alt={official.name}
+            width={80}
+            height={80}
             style={{
-              width: 80,
-              height: 80,
               borderRadius: '50%',
               objectFit: 'cover',
               border: '3px solid var(--border-color)',
