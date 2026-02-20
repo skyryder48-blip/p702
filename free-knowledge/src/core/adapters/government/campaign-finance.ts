@@ -54,10 +54,10 @@ export class CampaignFinanceAdapter extends BaseAdapter {
 
     return {
       candidateId: match.candidate_id,
-      name: match.name,
-      party: match.party_full ?? match.party,
-      office: match.office_full ?? match.office,
-      state: match.state,
+      name: match.name ?? '',
+      party: match.party_full ?? match.party ?? '',
+      office: match.office_full ?? match.office ?? '',
+      state: match.state ?? '',
       cycles: match.cycles ?? [],
     };
   }
@@ -86,7 +86,7 @@ export class CampaignFinanceAdapter extends BaseAdapter {
       name: candidate.name ?? '',
       party: candidate.party_full ?? candidate.party ?? '',
       office: candidate.office_full ?? candidate.office ?? '',
-      cycle: totals.cycle,
+      cycle: totals.cycle ?? 0,
       totalReceipts: totals.receipts ?? 0,
       totalDisbursements: totals.disbursements ?? 0,
       cashOnHand: totals.cash_on_hand_end_period ?? 0,
