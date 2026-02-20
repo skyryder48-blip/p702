@@ -5,6 +5,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getOrchestrator } from '@/lib/orchestrator';
 import { checkRateLimit, getRateLimitKey } from '@/core/auth/rate-limit';
 import { CompareEngine } from '@/engines/compare/index';
+import { getRequestTier } from '@/lib/api-auth';
+import { requireFeature } from '@/core/auth/middleware';
 
 export async function GET(request: NextRequest) {
   const a = request.nextUrl.searchParams.get('a');
@@ -24,9 +26,10 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Rate limit check
-  const rateKey = getRateLimitKey(request);
-  const rateResult = checkRateLimit(rateKey, 'free');
+  // Rate limit check (tier-aware)
+  const { tier, userId } = await getRequestTier(request);
+  const rateKey = userId ? `user:${userId}` : getRateLimitKey(request);
+  const rateResult = checkRateLimit(rateKey, tier);
   if (!rateResult.allowed) {
     return NextResponse.json(
       { error: 'Rate limit exceeded. Please try again later.' },
@@ -37,6 +40,12 @@ export async function GET(request: NextRequest) {
         },
       }
     );
+  }
+
+  // Feature gate — compare is premium only
+  const denied = requireFeature('compare.side_by_side', tier);
+  if (denied) {
+    return NextResponse.json({ error: denied.error }, { status: denied.status });
   }
 
   try {

@@ -8,8 +8,8 @@ import { getToken } from 'next-auth/jwt';
 // Routes that require authentication
 const PROTECTED_ROUTES = ['/dashboard', '/api/user'];
 
-// Routes that require premium tier
-const PREMIUM_ROUTES = ['/compare', '/issues'];
+// Routes that require premium tier (issues page is open — gating at component/API level)
+const PREMIUM_ROUTES = ['/compare'];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -51,5 +51,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/api/user/:path*', '/compare/:path*', '/issues/:path*'],
+  matcher: ['/dashboard/:path*', '/api/user/:path*', '/compare/:path*'],
 };
