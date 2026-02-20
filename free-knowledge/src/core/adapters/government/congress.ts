@@ -13,6 +13,7 @@ import {
 import {
   CongressMemberResponseSchema,
   CongressBillListSchema,
+  CongressMemberListSchema,
   safeParseWith,
 } from '../schemas';
 
@@ -74,6 +75,39 @@ export class CongressAdapter extends BaseAdapter {
       sponsoredCount: m.sponsoredLegislation?.count ?? 0,
       cosponsoredCount: m.cosponsoredLegislation?.count ?? 0,
     };
+  }
+
+  // --- Members by State ---
+
+  async getMembersByState(stateCode: string): Promise<MemberSummary[]> {
+    const raw = await this.fetchJSON<any>(
+      this.url('/member', {
+        stateCode,
+        currentMember: 'true',
+        limit: '50',
+      })
+    );
+
+    const data = safeParseWith(CongressMemberListSchema, raw, 'congress.memberList');
+
+    return (data.members ?? []).map((m: any) => {
+      const terms = m.terms ?? [];
+      const currentTerm = terms[terms.length - 1];
+
+      return {
+        bioguideId: m.bioguideId,
+        name: m.directOrderName ?? `${m.firstName ?? ''} ${m.lastName ?? ''}`.trim(),
+        firstName: m.firstName ?? '',
+        lastName: m.lastName ?? '',
+        party: m.partyName ?? m.party ?? '',
+        state: m.state ?? stateCode,
+        district: m.district?.toString(),
+        chamber: currentTerm?.chamber?.toLowerCase() === 'senate' ? 'senate' : 'house',
+        depiction: m.depiction?.imageUrl,
+        officialUrl: m.officialWebsiteUrl,
+        currentMember: m.currentMember ?? true,
+      };
+    });
   }
 
   // --- Sponsored Bills ---

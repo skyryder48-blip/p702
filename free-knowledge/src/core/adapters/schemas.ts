@@ -49,6 +49,10 @@ export const CongressBillListSchema = z.object({
   sponsoredLegislation: z.array(CongressBillSchema).optional().default([]),
 }).passthrough();
 
+export const CongressMemberListSchema = z.object({
+  members: z.array(CongressMemberSchema).optional().default([]),
+}).passthrough();
+
 // ===========================
 // FEC
 // ===========================

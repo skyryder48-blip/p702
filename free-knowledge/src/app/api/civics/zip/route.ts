@@ -1,5 +1,6 @@
 // GET /api/civics/zip?code=60188
-// Returns representatives for a zip code via Google Civic Info API
+// Returns representatives for a zip code
+// Primary: Google Civic Info API, Fallback: Congress.gov API
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getOrchestrator } from '@/lib/orchestrator';
@@ -57,10 +58,13 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(result);
   } catch (error: any) {
-    console.error('[API:civics/zip] Error:', error);
+    const message = error.message ?? 'Failed to look up zip code';
+    console.error('[API:civics/zip] Error:', message);
+
+    const status = message.includes('Unable to determine state') ? 400 : 502;
     return NextResponse.json(
-      { error: error.message ?? 'Failed to look up zip code' },
-      { status: 500 }
+      { error: 'Failed to look up representatives. Please try again later.', detail: message },
+      { status }
     );
   }
 }
