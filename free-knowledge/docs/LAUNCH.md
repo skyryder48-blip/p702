@@ -90,90 +90,266 @@ createdb freecivics
 
 ## Step 3: Download the Project and Install Dependencies
 
-If you haven't already cloned or downloaded the project, do that first. Then navigate into the project folder:
+### 3a. Get the Source Code
+
+If you haven't already downloaded the project, you need to clone it from GitHub. Open your terminal and run:
+
+```bash
+git clone https://github.com/YOUR-ORG/free-knowledge.git
+```
+
+> Replace `YOUR-ORG/free-knowledge` with the actual repository URL. If you received a `.zip` file instead, unzip it — the result is the same.
+
+**What just happened:** `git clone` downloads the entire project (source code, configuration files, documentation) into a new folder called `free-knowledge/`.
+
+### 3b. Navigate into the Project Folder
 
 ```bash
 cd free-knowledge
 ```
 
-Install all the libraries the app depends on:
+Verify you're in the right place:
+
+```bash
+ls package.json
+```
+
+You should see `package.json` printed. If you see "No such file or directory", you're in the wrong folder — make sure you `cd` into the folder that was created by `git clone`.
+
+### 3c. Install Dependencies
 
 ```bash
 npm install
 ```
 
-This reads `package.json` and downloads everything into a `node_modules/` folder. It takes a minute or two the first time.
+**What this does:** Reads `package.json` (the project's dependency manifest) and downloads every library the app needs — React, Next.js, Prisma, authentication, etc. — into a `node_modules/` folder. It also auto-generates the Prisma database client (via the `postinstall` hook).
+
+**What to expect:**
+- First run takes 1–3 minutes depending on your internet speed
+- You'll see a progress bar and a tree of package names scrolling by
+- When it finishes, the last line should say something like:
+  ```
+  added 487 packages, and audited 488 packages in 45s
+  ```
+- There may be `npm warn` lines — these are normal and can be ignored
+- If you see `npm ERR!` lines, something went wrong (see below)
+
+**How to verify it worked:**
+
+```bash
+ls node_modules/.package-lock.json
+```
+
+If this file exists, installation succeeded. You can also check:
+
+```bash
+npx next --version
+```
+
+This should print the Next.js version (e.g., `14.2.x`).
+
+**Common problems:**
+
+| Symptom | Fix |
+|---------|-----|
+| `npm ERR! code EACCES` (permission denied) | Don't use `sudo`. Fix npm permissions: `npm config set prefix ~/.npm-global` and add `~/.npm-global/bin` to your PATH |
+| `npm ERR! code ENETUNREACH` (network error) | Check internet connection. If behind a corporate proxy, configure it: `npm config set proxy http://proxy:port` |
+| `npm ERR! node-pre-gyp` or native module errors | Install build tools: macOS `xcode-select --install`, Ubuntu `sudo apt install build-essential`, Windows install Visual Studio Build Tools |
+| `npm warn deprecated` messages | Safe to ignore — these are upstream warnings, not errors |
+| Process hangs with no output | Press Ctrl+C, delete the lock file (`rm package-lock.json`), and run `npm install` again |
 
 ---
 
 ## Step 4: Configure Environment Variables
 
-Environment variables are settings that tell the app how to connect to the database, which API keys to use, etc. They're stored in a file called `.env.local` that is **never committed to git** (it's in `.gitignore`).
+Environment variables are settings that tell the app how to connect to the database, which API keys to use, and how authentication should behave. They are stored in a file called `.env.local` in the project root.
 
-### Create the file
+**Why `.env.local`?** This file is listed in `.gitignore`, which means it is **never committed to git**. This is a security measure — it keeps database passwords and API keys out of source control. Every developer has their own `.env.local` with their own credentials.
+
+### 4a. Create the File from the Template
 
 ```bash
 cp .env.example .env.local
 ```
 
-This copies the template. Now open `.env.local` in a text editor and fill in these values:
+**What this does:** Copies the template file (`.env.example`) to a new file (`.env.local`). The template has every variable the app recognizes, with empty values and comments explaining each one.
 
-### Required Variables
+Verify the file was created:
 
-**`DATABASE_URL`** — Your PostgreSQL connection string.
-
-If you used Neon (Option A in Step 2):
-```
-DATABASE_URL=postgresql://user:pass@ep-cool-name-12345.us-east-2.aws.neon.tech/neondb?sslmode=require
+```bash
+ls -la .env.local
 ```
 
-If you installed PostgreSQL locally (Option B):
+### 4b. Open the File in a Text Editor
+
+Use whichever editor you're comfortable with:
+
+```bash
+# VS Code (if installed):
+code .env.local
+
+# Nano (available on most systems):
+nano .env.local
+
+# Vim:
+vim .env.local
+
+# Or open in any GUI text editor — the file is at:
+#   <your-project-folder>/free-knowledge/.env.local
+```
+
+> **Windows note:** If you're using Notepad, make sure "Save as type" is set to "All Files" so it doesn't add `.txt` to the filename.
+
+### 4c. Fill in the Required Variables
+
+There are only **three variables** you must set. Everything else has sensible defaults or is optional.
+
+---
+
+#### `DATABASE_URL` — Where your database lives
+
+This is a connection string in the format `postgresql://USER:PASSWORD@HOST:PORT/DBNAME`.
+
+**If you used Neon (Cloud — Option A in Step 2):**
+
+Paste the connection string Neon gave you. It looks like this:
+
+```
+DATABASE_URL=postgresql://neondb_owner:abc123xyz@ep-cool-name-12345.us-east-2.aws.neon.tech/neondb?sslmode=require
+```
+
+Important: the `?sslmode=require` at the end is required for Neon. Don't remove it.
+
+**If you installed PostgreSQL locally (Option B in Step 2):**
+
 ```
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/freecivics
 ```
 
-**`NEXTAUTH_SECRET`** — A random string used to sign authentication tokens. Generate one:
+The format is: `postgresql://USERNAME:PASSWORD@HOST:PORT/DATABASE_NAME`
+
+- `postgres:postgres` — the default username and password on most local installs. If you set a custom password during installation, use that instead.
+- `localhost:5432` — the default host and port for a local PostgreSQL server.
+- `freecivics` — the database name you created with `createdb freecivics` in Step 2.
+
+**How to verify your connection string works** (optional, but recommended):
+
+```bash
+npx prisma db execute --stdin <<< "SELECT 1"
+```
+
+If this prints a result without errors, your database connection is valid. If you see `ECONNREFUSED`, your database isn't running or the connection string is wrong.
+
+---
+
+#### `NEXTAUTH_SECRET` — Signs authentication tokens
+
+This is a random string that the app uses to cryptographically sign session cookies. It must be at least 32 characters and should be different for every environment (dev, staging, production).
+
+**Generate one:**
 
 ```bash
 openssl rand -base64 32
 ```
 
-Copy the output and paste it:
+This prints a random string like `K7v2bX9qN...`. Copy the entire output and paste it into `.env.local`:
+
 ```
-NEXTAUTH_SECRET=aB3dEf...your-random-string-here
+NEXTAUTH_SECRET=K7v2bX9qN1pMzYwR8dFhT3jL6uAeC0sG5xI4kW7vQ2o=
 ```
 
-If `openssl` isn't available, use any long random string (40+ characters).
+**If `openssl` is not available** (common on Windows without Git Bash):
 
-**`NEXTAUTH_URL`** — Leave as-is for local development:
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+```
+
+Or just type any random string of 40+ characters — letters, numbers, and symbols. It doesn't need to be memorized.
+
+---
+
+#### `NEXTAUTH_URL` — The app's base URL
+
+For local development, leave the default value:
+
 ```
 NEXTAUTH_URL=http://localhost:3000
 ```
 
-### Auth Mode
+Only change this when deploying to production (e.g., `https://freecivics.vercel.app`).
 
-For your first run, keep the defaults:
+---
+
+### 4d. Choose Your Auth Mode
+
+The app supports two authentication modes. **For your first run, use stub mode** — it lets you explore the app without needing a working database for auth.
+
 ```
 NEXT_PUBLIC_AUTH_PROVIDER=stub
 NEXT_PUBLIC_FORCE_TIER=free
 ```
 
-This runs the app in **stub mode** — no login required, no database needed for auth. You can change this later after you've verified everything works.
+| Variable | Value | What It Does |
+|----------|-------|--------------|
+| `NEXT_PUBLIC_AUTH_PROVIDER` | `stub` | Bypasses real login — you're automatically "logged in" as a test user |
+| `NEXT_PUBLIC_AUTH_PROVIDER` | `nextauth` | Uses real email/password login against the database |
+| `NEXT_PUBLIC_FORCE_TIER` | `free` | Shows the app as a free-tier user (limited features) |
+| `NEXT_PUBLIC_FORCE_TIER` | `premium` | Shows the app as a premium user (compare tool, full finance data) |
+| `NEXT_PUBLIC_FORCE_TIER` | `institutional` | Shows the app as an institutional user (all features) |
 
-### Government API Keys (Optional)
+You can change these at any time. After editing `.env.local`, stop the dev server (`Ctrl+C`) and restart it (`npm run dev`) for the changes to take effect.
 
-These enable live data from government APIs. The app works without them (you'll see error messages for API calls), but with them you get real representative data:
+### 4e. Add Government API Keys (Optional)
 
-- **Congress API**: Free — register at https://api.congress.gov/sign-up/
-- **Google Civic API**: Free tier — enable "Google Civic Information API" at https://console.cloud.google.com/
-- **FEC API**: Free — register at https://api.open.fec.gov/developers/
+These keys enable live data from government APIs. **The app will start without them**, but API-powered pages (zip code search, representative profiles, campaign finance) will show errors or empty states.
 
-Add any keys you have:
+All three are free to obtain:
+
+| Key | Where to Get It | What It Enables |
+|-----|-----------------|-----------------|
+| `CONGRESS_API_KEY` | https://api.congress.gov/sign-up/ | Bill data, voting records, member info from Congress.gov |
+| `GOOGLE_CIVIC_API_KEY` | https://console.cloud.google.com/ (enable "Google Civic Information API") | Zip-code-to-representative lookup |
+| `FEC_API_KEY` | https://api.open.fec.gov/developers/ | Campaign finance and donation data |
+
+**Congress API sign-up** takes about 1 minute — enter your email, click the confirmation link, and copy the key from the confirmation page.
+
+**Google Civic API** requires a Google Cloud account (free). Create a project, go to "APIs & Services" > "Enable APIs", search for "Google Civic Information API", enable it, then create an API key under "Credentials".
+
+**FEC API** — enter your email on the registration page and the key is emailed to you immediately.
+
+Once you have your keys, add them to `.env.local`:
+
 ```
 CONGRESS_API_KEY=your-key-here
 GOOGLE_CIVIC_API_KEY=your-key-here
 FEC_API_KEY=your-key-here
 ```
+
+> **Security reminder:** Never share these keys publicly or commit them to git. The `.env.local` file is already in `.gitignore`, so as long as you keep keys in that file, they're safe.
+
+### 4f. Verify Your Configuration
+
+After saving `.env.local`, do a quick sanity check:
+
+```bash
+# Make sure the file exists and isn't empty:
+wc -l .env.local
+
+# Make sure DATABASE_URL is set (this prints just the line count — not the actual secret):
+grep -c "DATABASE_URL=" .env.local
+```
+
+You should see a line count greater than 0 and `1` for the grep. If `DATABASE_URL=` isn't found, reopen the file and check for typos.
+
+**Common `.env.local` mistakes:**
+
+| Mistake | Example | Fix |
+|---------|---------|-----|
+| Spaces around `=` | `DATABASE_URL = postgresql://...` | Remove spaces: `DATABASE_URL=postgresql://...` |
+| Quotes around values | `DATABASE_URL="postgresql://..."` | Remove quotes: `DATABASE_URL=postgresql://...` |
+| Trailing whitespace | `NEXTAUTH_SECRET=abc123   ` | Delete trailing spaces |
+| Wrong filename | `.env.local.txt` or `env.local` | Must be exactly `.env.local` (starts with a dot, no extension) |
+| Windows line endings after manual editing | Invisible `\r` characters | Open in VS Code, click "CRLF" in the bottom bar, switch to "LF" |
 
 ---
 
