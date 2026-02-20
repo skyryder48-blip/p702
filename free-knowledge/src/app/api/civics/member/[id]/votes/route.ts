@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getOrchestrator } from '@/lib/orchestrator';
 import { checkRateLimit, getRateLimitKey } from '@/core/auth/rate-limit';
 import { getRequestTier } from '@/lib/api-auth';
+import { getCached, setCache } from '@/lib/cache';
 
 export async function GET(
   request: NextRequest,
@@ -39,9 +40,15 @@ export async function GET(
     const chamber = (request.nextUrl.searchParams.get('chamber') as 'house' | 'senate') ?? 'house';
     const limit = Math.min(parseInt(request.nextUrl.searchParams.get('limit') ?? '20', 10), 50);
 
-    const votes = await getOrchestrator().getMemberVotes(bioguideId, chamber, limit);
+    const cacheKey = `votes:${bioguideId}:${chamber}:${limit}`;
+    const cached = getCached<any>(cacheKey);
+    if (cached) return NextResponse.json(cached);
 
-    return NextResponse.json({ bioguideId, votes });
+    const votes = await getOrchestrator().getMemberVotes(bioguideId, chamber, limit);
+    const response = { bioguideId, votes };
+    setCache(cacheKey, response, 'votes');
+
+    return NextResponse.json(response);
   } catch (error: any) {
     console.error('[API:civics/member/votes] Error:', error);
     return NextResponse.json(

@@ -11,16 +11,19 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
     });
     if (res.ok) {
       const data = await res.json();
-      const name = data.member?.name ?? bioguideId;
-      const title = data.member?.chamber === 'senate'
-        ? `Sen. ${name}`
-        : `Rep. ${name}`;
+      const member = data.member;
+      const name = member?.name ?? bioguideId;
+      const chamber = member?.chamber === 'senate' ? 'Senator' : 'Representative';
+      const title = `${name} — ${chamber} from ${member?.state ?? ''}`;
+      const description = `Voting record, legislation, campaign finance, and committee assignments for ${name} (${member?.party ?? ''}, ${member?.state ?? ''}).`;
       return {
-        title: `${title} — free-civics`,
-        description: `Voting record, campaign finance, and legislative history for ${name}`,
+        title: `${title} | free-civics`,
+        description,
         openGraph: {
-          title: `${title} — free-civics`,
-          description: `Voting record, campaign finance, and legislative history for ${name}`,
+          title,
+          description,
+          type: 'profile',
+          ...(member?.depiction ? { images: [{ url: member.depiction }] } : {}),
         },
       };
     }

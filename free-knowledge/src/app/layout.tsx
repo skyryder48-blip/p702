@@ -2,11 +2,21 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Providers } from './providers';
 import { AuthNav } from '@/components/AuthNav';
+import { MobileNav } from '@/components/MobileNav';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'free-civics',
-  description: 'Transparent civic intelligence — know your representatives',
+  title: {
+    default: 'free-civics — Know Your Representatives',
+    template: '%s | free-civics',
+  },
+  description: 'Transparent civic intelligence. See voting records, campaign finance, and legislative history for your elected officials.',
+  openGraph: {
+    type: 'website',
+    siteName: 'free-civics',
+    title: 'free-civics — Know Your Representatives',
+    description: 'Transparent civic intelligence. See voting records, campaign finance, and legislative history for your elected officials.',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -27,6 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </ul>
               </nav>
               <AuthNav />
+              <MobileNav />
             </div>
           </header>
           <main>{children}</main>

@@ -15,6 +15,7 @@ export function AuthNav() {
     return (
       <Link
         href="/login"
+        className="auth-nav"
         style={{
           color: 'rgba(255, 255, 255, 0.85)',
           fontSize: '0.95rem',
@@ -30,7 +31,7 @@ export function AuthNav() {
   const displayName = user?.name ?? user?.email?.split('@')[0] ?? 'User';
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
+    <div className="auth-nav" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
       <span style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '0.85rem' }}>
         {displayName}
         {tier !== 'free' && (

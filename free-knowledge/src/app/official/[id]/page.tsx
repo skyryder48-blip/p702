@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { SaveOfficialButton } from '@/components/SaveOfficialButton';
 import { useCivicsAuth } from '@/core/auth/use-civics-auth';
 import { FeatureGate, UpgradePrompt } from '@/core/auth/components';
@@ -233,12 +234,12 @@ export default function OfficialPage() {
         <div className="card" style={{ marginBottom: 'var(--space-xl)' }}>
           <div style={{ display: 'flex', gap: 'var(--space-xl)', alignItems: 'center', flexWrap: 'wrap' }}>
             {member.depiction && (
-              <img
+              <Image
                 src={member.depiction}
                 alt={member.name}
+                width={120}
+                height={120}
                 style={{
-                  width: 120,
-                  height: 120,
                   borderRadius: '50%',
                   objectFit: 'cover',
                   border: '4px solid var(--border-color)',

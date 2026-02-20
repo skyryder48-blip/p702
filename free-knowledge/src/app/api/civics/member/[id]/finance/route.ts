@@ -6,6 +6,8 @@ import { getOrchestrator } from '@/lib/orchestrator';
 import { checkRateLimit, getRateLimitKey } from '@/core/auth/rate-limit';
 import { getRequestTier } from '@/lib/api-auth';
 import { requireFeature } from '@/core/auth/middleware';
+import { getCached, setCache } from '@/lib/cache';
+import { trackUsage } from '@/lib/db';
 
 export async function GET(
   request: NextRequest,
@@ -39,12 +41,16 @@ export async function GET(
   }
 
   try {
-    const result = await getOrchestrator().getMemberFinance(bioguideId, name);
+    const cacheKey = `finance:${bioguideId}`;
+    const cached = getCached<any>(cacheKey);
+    if (cached) return NextResponse.json(cached);
 
-    return NextResponse.json({
-      bioguideId,
-      ...result,
-    });
+    const result = await getOrchestrator().getMemberFinance(bioguideId, name);
+    const response = { bioguideId, ...result };
+    setCache(cacheKey, response, 'finance');
+    trackUsage({ feature: 'finance.view', tier, action: 'view' }).catch(() => {});
+
+    return NextResponse.json(response);
   } catch (error: any) {
     console.error('[API:civics/member/finance] Error:', error);
     return NextResponse.json(

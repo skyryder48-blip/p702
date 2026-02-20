@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getOrchestrator } from '@/lib/orchestrator';
 import { checkRateLimit, getRateLimitKey } from '@/core/auth/rate-limit';
 import { getRequestTier } from '@/lib/api-auth';
+import { getCached, setCache } from '@/lib/cache';
 
 export async function GET(
   request: NextRequest,
@@ -45,9 +46,16 @@ export async function GET(
     }
 
     const limit = Math.min(parseInt(request.nextUrl.searchParams.get('limit') ?? '5', 10), 20);
-    const articles = await getOrchestrator().getMemberNews(name, limit);
 
-    return NextResponse.json({ bioguideId, articles });
+    const cacheKey = `news:${bioguideId}:${limit}`;
+    const cached = getCached<any>(cacheKey);
+    if (cached) return NextResponse.json(cached);
+
+    const articles = await getOrchestrator().getMemberNews(name, limit);
+    const response = { bioguideId, articles };
+    setCache(cacheKey, response, 'news');
+
+    return NextResponse.json(response);
   } catch (error: any) {
     console.error('[API:civics/member/news] Error:', error);
     return NextResponse.json(

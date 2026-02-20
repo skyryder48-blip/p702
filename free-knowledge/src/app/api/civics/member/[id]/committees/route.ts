@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getOrchestrator } from '@/lib/orchestrator';
 import { checkRateLimit, getRateLimitKey } from '@/core/auth/rate-limit';
 import { getRequestTier } from '@/lib/api-auth';
+import { getCached, setCache } from '@/lib/cache';
 
 export async function GET(
   request: NextRequest,
@@ -36,9 +37,15 @@ export async function GET(
   }
 
   try {
-    const committees = await getOrchestrator().getMemberCommittees(bioguideId);
+    const cacheKey = `committees:${bioguideId}`;
+    const cached = getCached<any>(cacheKey);
+    if (cached) return NextResponse.json(cached);
 
-    return NextResponse.json({ bioguideId, committees });
+    const committees = await getOrchestrator().getMemberCommittees(bioguideId);
+    const response = { bioguideId, committees };
+    setCache(cacheKey, response, 'committees');
+
+    return NextResponse.json(response);
   } catch (error: any) {
     console.error('[API:civics/member/committees] Error:', error);
     return NextResponse.json(
