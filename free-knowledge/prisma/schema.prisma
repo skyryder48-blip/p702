@@ -1,0 +1,251 @@
+// ============================================================
+// free-civics — Prisma Schema (PostgreSQL)
+//
+// Database: PostgreSQL (local dev → Neon production)
+// ORM: Prisma with full type safety
+//
+// Setup:
+//   1. npm install
+//   2. Set DATABASE_URL in .env.local
+//   3. npx prisma db push    (create tables)
+//   4. npm run db:seed        (seed test data)
+//   5. npx prisma studio      (visual data browser)
+// ============================================================
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["fullTextSearch"]     // PostgreSQL full-text search
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===========================
+// AUTHENTICATION (NextAuth.js)
+// ===========================
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ===========================
+// USERS
+// ===========================
+
+model User {
+  id             String    @id @default(cuid())
+  email          String    @unique
+  emailVerified  DateTime?
+  name           String?
+  image          String?
+  hashedPassword String?                     // Credentials provider
+
+  // Subscription & access
+  tier           String    @default("free")  // free | premium | institutional
+  tierExpiresAt  DateTime?                   // When paid tier expires (null = no expiry)
+  stripeCustomerId String? @unique           // Future: Stripe integration
+
+  // User preferences
+  zipCode        String?                     // Home zip code for "My Reps"
+  defaultState   String?                     // Home state abbreviation
+
+  // Timestamps
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  lastLoginAt    DateTime?
+
+  // Relations
+  accounts       Account[]
+  sessions       Session[]
+  savedOfficials SavedOfficial[]
+  issuePrefs     UserIssuePreference[]
+  searchHistory  SearchHistory[]
+  alerts         Alert[]
+
+  @@index([email])
+  @@index([tier])
+  @@index([zipCode])
+}
+
+// ===========================
+// SAVED OFFICIALS & ALERTS
+// ===========================
+
+model SavedOfficial {
+  id         String   @id @default(cuid())
+  userId     String
+  bioguideId String                          // Congress bioguide ID
+  name       String
+  title      String?
+  party      String?
+  state      String?
+  chamber    String?                         // house | senate
+  alertsOn   Boolean  @default(true)         // Receive alerts for this official
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  alerts Alert[]
+
+  @@unique([userId, bioguideId])
+  @@index([userId])
+  @@index([bioguideId])
+}
+
+model Alert {
+  id              String   @id @default(cuid())
+  userId          String
+  savedOfficialId String?
+  type            String                     // new_vote | new_bill | news | finance_update
+  title           String
+  body            String   @db.Text
+  referenceId     String?                    // Bill ID, vote ID, etc.
+  referenceUrl    String?
+  read            Boolean  @default(false)
+  emailSent       Boolean  @default(false)
+
+  createdAt       DateTime @default(now())
+
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  savedOfficial  SavedOfficial? @relation(fields: [savedOfficialId], references: [id], onDelete: SetNull)
+
+  @@index([userId, read])
+  @@index([userId, createdAt])
+  @@index([savedOfficialId])
+}
+
+// ===========================
+// USER PREFERENCES
+// ===========================
+
+model UserIssuePreference {
+  id        String   @id @default(cuid())
+  userId    String
+  issueId   String                           // Matches IssueCategory.id (e.g., "healthcare")
+  priority  Int      @default(0)             // Lower = higher priority
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, issueId])
+  @@index([userId])
+}
+
+// ===========================
+// SEARCH & USAGE TRACKING
+// ===========================
+
+model SearchHistory {
+  id        String   @id @default(cuid())
+  userId    String?                          // Null for anonymous searches
+  query     String
+  type      String                           // official | zip | issue | compare
+  resultId  String?                          // Bioguide ID or zip code returned
+  ipHash    String?                          // Hashed IP for rate limiting (anonymous users)
+
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([query])
+  @@index([type, createdAt])
+  @@index([ipHash, createdAt])
+}
+
+// ===========================
+// DATA CACHE
+// PostgreSQL-backed cache for API responses.
+// Supplements in-memory LRU cache for persistence
+// across server restarts and serverless cold starts.
+// ===========================
+
+model CachedProfile {
+  id         String   @id @default(cuid())
+  bioguideId String   @unique              // Congress bioguide ID
+  name       String
+  data       Json                           // Full profile JSON
+  version    Int      @default(1)           // Schema version for cache invalidation
+
+  fetchedAt  DateTime @default(now())       // When data was last fetched from APIs
+  expiresAt  DateTime                       // When this cache entry should be refreshed
+
+  @@index([bioguideId])
+  @@index([expiresAt])
+  @@index([name])
+}
+
+model CachedZipLookup {
+  id         String   @id @default(cuid())
+  zipCode    String   @unique
+  state      String
+  district   String
+  data       Json                           // Full lookup result JSON
+
+  fetchedAt  DateTime @default(now())
+  expiresAt  DateTime
+
+  @@index([zipCode])
+  @@index([expiresAt])
+}
+
+// ===========================
+// ANALYTICS (anonymous, aggregated)
+// Tracks feature usage for product decisions.
+// No PII stored — only aggregated counts.
+// ===========================
+
+model UsageMetric {
+  id        String   @id @default(cuid())
+  feature   String                           // Feature ID from tiers.ts
+  tier      String                           // User's tier at time of access
+  action    String                           // view | click | search | export
+  count     Int      @default(1)
+
+  date      DateTime @db.Date               // Aggregated by day
+  hour      Int?                             // 0-23 for hourly breakdown (optional)
+
+  @@unique([feature, tier, action, date])
+  @@index([feature, date])
+  @@index([date])
+}
