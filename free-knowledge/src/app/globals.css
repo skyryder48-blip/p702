@@ -373,9 +373,17 @@ a:hover {
   font-weight: 600;
 }
 
-.vote-badge.yea { background: var(--color-yea); color: white; }
-.vote-badge.nay { background: var(--color-nay); color: white; }
-.vote-badge.not-voting { background: var(--color-not-voting); color: white; }
+.vote-badge.yea, .vote-yea { background: var(--color-yea); color: white; }
+.vote-badge.nay, .vote-nay { background: var(--color-nay); color: white; }
+.vote-badge.not-voting, .vote-other { background: var(--color-not-voting); color: white; }
+
+.vote-yea, .vote-nay, .vote-other {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
 
 /* ===========================
    Metric Bars

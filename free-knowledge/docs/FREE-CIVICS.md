@@ -118,6 +118,12 @@ Side-by-side comparison of any two officials:
 | `/api/civics/zip` | GET | `code` | Zip code → representatives |
 | `/api/civics/member/[id]` | GET | bioguide ID | Member profile + bills + biography |
 | `/api/civics/member/[id]/finance` | GET | `name` | FEC campaign finance data |
+| `/api/civics/member/[id]/votes` | GET | `chamber`, `limit` | Recent roll call votes with positions |
+| `/api/civics/member/[id]/committees` | GET | bioguide ID | Committee and subcommittee memberships |
+| `/api/civics/member/[id]/news` | GET | `name`, `limit` | Recent news articles |
+| `/api/civics/member/[id]/metrics` | GET | `chamber` | Scorecard metrics with benchmarks |
+| `/api/civics/compare` | GET | `a`, `b` (bioguide IDs) | Side-by-side comparison |
+| `/api/civics/issues` | GET | `official`, `issue` | Issue-specific report |
 | `/api/auth/register` | POST | `email`, `password` | User registration |
 
 ## Quick Start
@@ -163,7 +169,7 @@ npx tsx src/test/civics-test.ts "Nancy Pelosi"
 
 - [x] Phase 1: Data layer, auth system, API routes, frontend (complete)
 - [x] Phase 1.5: Hardening — validation, caching, error boundaries, rate limits (complete)
-- [ ] Phase 2: Core features — votes, committees, news, compare, issues, metrics
+- [x] Phase 2: Core features — votes, committees, news, compare, issues, metrics (complete)
 - [ ] Phase 3: User system — login, dashboard, feature gating
 - [ ] Phase 4: Production readiness — SEO, mobile nav, analytics, deployment
 - [ ] Phase 5: Post-launch — Stripe, alerts, PDF export, bulk data
