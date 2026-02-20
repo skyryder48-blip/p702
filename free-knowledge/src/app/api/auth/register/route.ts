@@ -7,9 +7,35 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
+import { checkRateLimit } from '@/core/auth/rate-limit';
+
+// Per-IP registration rate limit (stricter than general API limits)
+const registrationLimits = new Map<string, { count: number; windowStart: number }>();
+
+function checkRegistrationLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = registrationLimits.get(ip);
+  if (!entry || now - entry.windowStart > 3_600_000) {
+    registrationLimits.set(ip, { count: 1, windowStart: now });
+    return true;
+  }
+  if (entry.count >= 5) return false; // 5 registrations per IP per hour
+  entry.count++;
+  return true;
+}
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limit registration attempts
+    const forwarded = request.headers.get('x-forwarded-for');
+    const ip = forwarded?.split(',')[0]?.trim() ?? 'unknown';
+    if (!checkRegistrationLimit(ip)) {
+      return NextResponse.json(
+        { error: 'Too many registration attempts. Please try again later.' },
+        { status: 429, headers: { 'Retry-After': '3600' } }
+      );
+    }
+
     const body = await request.json();
     const { email, password, name } = body;
 
@@ -23,7 +49,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
     if (!emailRegex.test(email)) {
       return NextResponse.json(
         { error: 'Invalid email format' },
@@ -31,10 +57,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Password strength
-    if (password.length < 8) {
+    // Password strength — minimum 12 characters
+    if (password.length < 12) {
       return NextResponse.json(
-        { error: 'Password must be at least 8 characters' },
+        { error: 'Password must be at least 12 characters' },
+        { status: 400 }
+      );
+    }
+
+    // Name length check
+    if (name && name.length > 100) {
+      return NextResponse.json(
+        { error: 'Name must be 100 characters or less' },
         { status: 400 }
       );
     }

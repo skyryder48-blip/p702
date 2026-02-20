@@ -163,3 +163,14 @@ Given that free-civics is a public civic service app that could grow rapidly (ci
 **NextAuth.js** is the most economical long-term but requires the most upfront engineering investment.
 
 There's no wrong answer here — the gating system we're building is provider-agnostic, so you can start with any of these and switch later without touching application code.
+
+---
+
+## Decision (February 2025)
+
+**NextAuth.js was selected** as the auth provider for free-civics. Rationale:
+- Zero ongoing cost at any scale — critical for a public civic service
+- Full data ownership — user accounts live in our PostgreSQL database
+- Already implemented in the codebase (`src/app/api/auth/[...nextauth]/`)
+- The provider-agnostic auth adapter layer (`src/core/auth/adapter.ts`) means we can switch to Supabase or Clerk later without rewriting application code
+- CVE-2025-29927 mitigation: server-side gating via `gateProfileResponse()` ensures auth isn't middleware-only

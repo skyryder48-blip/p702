@@ -11,14 +11,14 @@ Search by name or position to get a complete dossier:
 - Professional history and education
 - Official photos and contact information
 
-### 📊 Scorecard / Report Card
-Every official gets graded on six dimensions:
-- **Attendance & Participation** — Vote attendance rate
-- **Legislative Effectiveness** — Bills introduced, advanced, and enacted
-- **Bipartisanship** — Cross-party voting frequency
-- **Transparency & Accountability** — Financial disclosure and small donor funding
-- **Constituency Focus** — Emphasis on local/state issues
-- **Leadership & Influence** — Committee roles and positions
+### 📊 Metrics Dashboard
+Every official gets raw performance data with contextual benchmarks across six dimensions (no letter grades — just data and context):
+- **Legislative Activity** — Bills sponsored with chamber average benchmark
+- **Collaboration** — Bills cosponsored
+- **Vote Participation** — Roll call attendance rate
+- **Cross-Party Voting** — Percentage of votes against party line
+- **Legislative Effectiveness** — Bills signed into law
+- **Committee Engagement** — Committee and subcommittee memberships
 
 ### 📜 Legislation Tracker
 - All sponsored and co-sponsored bills with **AI plain-language summaries**
@@ -103,7 +103,7 @@ Side-by-side comparison of any two officials:
      ▼
 [Specialized Engines]
      ├── [LegislationEngine]  → AI bill summaries, vote categorization
-     ├── [ScorecardEngine]    → multi-dimensional grading
+     ├── [ScorecardEngine]    → raw metrics with benchmarks (no grades)
      ├── [CompareEngine]      → side-by-side analysis
      └── [IssuesEngine]       → "What Affects Me" filtering
      │
@@ -115,11 +115,16 @@ Side-by-side comparison of any two officials:
 
 | Endpoint | Method | Params | Description |
 |----------|--------|--------|-------------|
-| `/api/civics/profile` | GET | `name` | Full official profile |
 | `/api/civics/zip` | GET | `code` | Zip code → representatives |
-| `/api/civics/compare` | GET | `official1`, `official2` | Side-by-side comparison |
-| `/api/civics/issues` | GET | `official`, `issues` | Issue-specific reports |
-| `/api/civics/categories` | GET | — | List all issue categories |
+| `/api/civics/member/[id]` | GET | bioguide ID | Member profile + bills + biography |
+| `/api/civics/member/[id]/finance` | GET | `name` | FEC campaign finance data |
+| `/api/civics/member/[id]/votes` | GET | `chamber`, `limit` | Recent roll call votes with positions |
+| `/api/civics/member/[id]/committees` | GET | bioguide ID | Committee and subcommittee memberships |
+| `/api/civics/member/[id]/news` | GET | `name`, `limit` | Recent news articles |
+| `/api/civics/member/[id]/metrics` | GET | `chamber` | Scorecard metrics with benchmarks |
+| `/api/civics/compare` | GET | `a`, `b` (bioguide IDs) | Side-by-side comparison |
+| `/api/civics/issues` | GET | `official`, `issue` | Issue-specific report |
+| `/api/auth/register` | POST | `email`, `password` | User registration |
 
 ## Quick Start
 
@@ -162,7 +167,12 @@ npx tsx src/test/civics-test.ts "Nancy Pelosi"
 
 ## Roadmap
 
-- [ ] Frontend UI (Next.js)
+- [x] Phase 1: Data layer, auth system, API routes, frontend (complete)
+- [x] Phase 1.5: Hardening — validation, caching, error boundaries, rate limits (complete)
+- [x] Phase 2: Core features — votes, committees, news, compare, issues, metrics (complete)
+- [ ] Phase 3: User system — login, dashboard, feature gating
+- [ ] Phase 4: Production readiness — SEO, mobile nav, analytics, deployment
+- [ ] Phase 5: Post-launch — Stripe, alerts, PDF export, bulk data
 - [ ] State legislature support (expand beyond federal)
 - [ ] Executive branch profiles (Cabinet, agency heads)
 - [ ] Senate confirmation tracker
