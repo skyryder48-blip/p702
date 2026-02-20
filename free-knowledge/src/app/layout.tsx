@@ -11,6 +11,9 @@ export const metadata: Metadata = {
     template: '%s | free-civics',
   },
   description: 'Transparent civic intelligence. See voting records, campaign finance, and legislative history for your elected officials.',
+  icons: {
+    icon: '/favicon.svg',
+  },
   openGraph: {
     type: 'website',
     siteName: 'free-civics',
