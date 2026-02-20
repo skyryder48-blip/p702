@@ -134,6 +134,8 @@ Returns `200` when healthy, `503` when degraded.
 
 ## Documentation
 
+- **[Launch Guide](docs/LAUNCH.md)** — first-time setup, step by step (start here)
+- **[Testing Guide](docs/TESTING.md)** — how to test every feature
 - [Architecture](docs/ARCHITECTURE.md) — system design, data pipeline, adapter pattern
 - [Database](docs/DATABASE.md) — schema, setup, migrations
 - [Development Guide](docs/DEVELOPMENT-GUIDE.md) — project structure, phase status
