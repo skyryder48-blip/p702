@@ -30,6 +30,9 @@ export class CongressAdapter extends BaseAdapter {
   }
 
   private url(path: string, params: Record<string, string> = {}): string {
+    if (!this.apiKey) {
+      throw new Error('CONGRESS_API_KEY is not set. Register at https://api.congress.gov/sign-up/');
+    }
     const searchParams = new URLSearchParams({
       api_key: this.apiKey,
       format: 'json',
@@ -88,7 +91,10 @@ export class CongressAdapter extends BaseAdapter {
       })
     );
 
-    const data = safeParseWith(CongressMemberListSchema, raw, 'congress.memberList');
+    // Guard against schema being undefined (stale webpack cache)
+    const data = CongressMemberListSchema
+      ? safeParseWith(CongressMemberListSchema, raw, 'congress.memberList')
+      : raw;
 
     return (data.members ?? []).map((m: any) => {
       const terms = m.terms ?? [];

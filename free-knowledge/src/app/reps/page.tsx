@@ -39,8 +39,11 @@ export default function RepsPage() {
     }
 
     fetch(`/api/civics/zip?code=${zip}`)
-      .then(res => {
-        if (!res.ok) throw new Error('Failed to fetch representatives');
+      .then(async res => {
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.detail || body.error || 'Failed to fetch representatives');
+        }
         return res.json();
       })
       .then(result => {

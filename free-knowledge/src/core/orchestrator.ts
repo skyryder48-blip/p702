@@ -68,23 +68,29 @@ export class Orchestrator {
     const cached = zipCache.get(zipCode) as ZipLookupResult | null;
     if (cached) return cached;
 
+    let civicErrorMsg = '';
+    let congressErrorMsg = '';
+
     // Try Google Civic Info API first
     try {
       const result = await this.civicInfo.lookupByZip(zipCode);
       zipCache.set(zipCode, result);
       return result;
     } catch (civicError) {
-      console.warn('[Orchestrator] Google Civic API failed, falling back to Congress.gov:', civicError instanceof Error ? civicError.message : civicError);
+      civicErrorMsg = civicError instanceof Error ? civicError.message : String(civicError);
+      console.warn('[Orchestrator] Google Civic API failed, falling back to Congress.gov:', civicErrorMsg);
     }
 
     // Fallback: use Congress.gov API with zip-to-state mapping
     const state = zipToState(zipCode);
     if (!state) {
-      throw new Error(`Unable to determine state for zip code ${zipCode}. Google Civic API is unavailable.`);
+      throw new Error(`Unable to determine state for zip code ${zipCode}. Google Civic API error: ${civicErrorMsg}`);
     }
 
     try {
+      console.log(`[Orchestrator] Trying Congress.gov fallback for state=${state}`);
       const members = await this.congress.getMembersByState(state);
+      console.log(`[Orchestrator] Congress.gov returned ${members.length} members for ${state}`);
       const officials = members.map(m => ({
         name: m.name,
         title: m.chamber === 'senate'
@@ -108,10 +114,21 @@ export class Orchestrator {
       zipCache.set(zipCode, result);
       return result;
     } catch (congressError) {
-      throw new Error(
-        `Zip code lookup failed. Google Civic API: unavailable. Congress.gov: ${congressError instanceof Error ? congressError.message : 'unavailable'}`
-      );
+      congressErrorMsg = congressError instanceof Error ? congressError.message : String(congressError);
+      console.error('[Orchestrator] Congress.gov fallback also failed:', congressErrorMsg);
     }
+
+    // Both APIs failed — return diagnostic error with setup instructions
+    const errors = [
+      civicErrorMsg ? `Google Civic: ${civicErrorMsg}` : null,
+      congressErrorMsg ? `Congress.gov: ${congressErrorMsg}` : null,
+    ].filter(Boolean).join(' | ');
+
+    throw new Error(
+      `Zip code lookup failed (both APIs down). ${errors}. ` +
+      `Check your API keys: GOOGLE_CIVIC_API_KEY (enable Civic Information API in Google Cloud Console) ` +
+      `and CONGRESS_API_KEY (register at https://api.congress.gov/sign-up/).`
+    );
   }
 
   // --- Member Profile ---
