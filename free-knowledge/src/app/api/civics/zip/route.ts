@@ -7,6 +7,8 @@ import { getOrchestrator } from '@/lib/orchestrator';
 import { getCachedZipLookup, setCachedZipLookup } from '@/lib/db';
 import { checkRateLimit, getRateLimitKey } from '@/core/auth/rate-limit';
 import { getRequestTier } from '@/lib/api-auth';
+import { zipToState } from '@/core/adapters/government/zip-to-state';
+import { CongressAdapter } from '@/core/adapters/government/congress';
 
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get('code');
@@ -47,7 +49,53 @@ export async function GET(request: NextRequest) {
       // DB not available — proceed without cache
     }
 
-    const result = await getOrchestrator().lookupByZipCode(code);
+    // Try the orchestrator (Google Civic API with internal fallback)
+    let result;
+    try {
+      result = await getOrchestrator().lookupByZipCode(code);
+    } catch (orchestratorError: any) {
+      console.warn('[API:civics/zip] Orchestrator lookup failed:', orchestratorError.message);
+
+      // Route-level fallback: call Congress.gov directly
+      const state = zipToState(code);
+      if (!state) {
+        throw new Error(
+          `Unable to determine state for zip code ${code}. API error: ${orchestratorError.message}`
+        );
+      }
+
+      console.log(`[API:civics/zip] Trying direct Congress.gov fallback for state=${state}`);
+      try {
+        const congress = new CongressAdapter({ apiKey: process.env.CONGRESS_API_KEY });
+        const members = await congress.getMembersByState(state);
+        console.log(`[API:civics/zip] Congress.gov returned ${members.length} members for ${state}`);
+
+        result = {
+          zipCode: code,
+          state,
+          officials: members.map((m: any) => ({
+            name: m.name,
+            title: m.chamber === 'senate'
+              ? `U.S. Senator — ${m.state}`
+              : `U.S. Representative — ${m.state}${m.district ? ` District ${m.district}` : ''}`,
+            party: m.party,
+            chamber: m.chamber,
+            photoUrl: m.depiction,
+            bioguideId: m.bioguideId,
+            phones: [],
+            urls: m.officialUrl ? [m.officialUrl] : [],
+            channels: [],
+          })),
+        };
+      } catch (congressError: any) {
+        console.error('[API:civics/zip] Congress.gov fallback also failed:', congressError.message);
+        throw new Error(
+          `Both APIs failed. Google Civic: ${orchestratorError.message}. ` +
+          `Congress.gov: ${congressError.message}. ` +
+          `Verify GOOGLE_CIVIC_API_KEY and CONGRESS_API_KEY are set correctly.`
+        );
+      }
+    }
 
     // Cache in PostgreSQL
     try {
@@ -59,7 +107,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(result);
   } catch (error: any) {
     const message = error.message ?? 'Failed to look up zip code';
-    console.error('[API:civics/zip] Error:', message);
+    console.error('[API:civics/zip] Final error:', message);
 
     const status = message.includes('Unable to determine state') ? 400 : 502;
     return NextResponse.json(
